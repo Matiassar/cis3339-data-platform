@@ -47,7 +47,7 @@ const routes = [
     path: '/eventdetails/:id',
     name: 'eventdetails',
     meta: { requiresAuth: true },
-    component: () => import('../views/eventdetails.vue')
+    component: () => import('../views/eventDetails.vue')
   },
   {
     path: '/serviceform',
