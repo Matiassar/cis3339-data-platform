@@ -5,7 +5,8 @@
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon app.js"
+    "start": "nodemon app.js",
+    "seed:dev": "node scripts/dev-seed.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.0",
@@ -21,6 +22,7 @@
     "eslint": "^8.47.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.0",
+    "nodemon": "^3.1.14",
     "prettier": "^3.0.2"
   },
   "eslintConfig": {
@@ -48,5 +50,8 @@
     "plugins": [
       "prettier"
     ]
+  },
+  "allowScripts": {
+    "bcrypt@5.1.1": true
   }
 }
