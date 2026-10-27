@@ -1,15 +1,16 @@
-// This pinia store contains state with respect to whether a user is logged in 
+// This Pinia store manages the logged-in user's state
 import { defineStore } from 'pinia'
 import { useToast } from 'vue-toastification'
-import { loginUser, logoutUser } from '../api/api' // import API calls
-import jwt_decode from 'jwt-decode'; // import JSON Web Token decoder to decode the token into the user's information
+import { loginUser, logoutUser, setAuthHeader } from '../api/api'
+import jwt_decode from 'jwt-decode'
 
-//Notifications
+// Notifications
 const toast = useToast()
 
-// Defining a store
+// Defining the store
 export const useLoggedInUserStore = defineStore({
   id: 'loggedInUser',
+
   state: () => {
     return {
       name: "",
@@ -17,34 +18,74 @@ export const useLoggedInUserStore = defineStore({
       isLoggedIn: false
     }
   },
+
   actions: {
+
+    // CHECKPOINT 1: Restore login when the page refreshes
+    restoreSession() {
+      const token = localStorage.getItem("authToken");
+
+      // If there is no saved token, remain logged out
+      if (!token) {
+        return;
+      }
+
+      try {
+        // Decode the saved JWT
+        const decodedToken = jwt_decode(token);
+
+        // Restore the user's name, role, and login status
+        this.$patch({
+          name: decodedToken.name,
+          role: decodedToken.role,
+          isLoggedIn: true
+        });
+
+        // Restore the authorization header for API requests
+        setAuthHeader(token);
+
+      } catch (error) {
+        console.error("Failed to restore session:", error);
+      }
+    },
+
+    // Log in using username and password
     async login(username, password) {
       try {
         const token = await loginUser(username, password);
-        // Get the user's name and role from the JWT token
+
+        // Get the user's name and role from the JWT
         const decodedToken = jwt_decode(token);
+
         this.$patch({
           isLoggedIn: true,
           role: decodedToken.role,
           name: decodedToken.name
         });
-        this.$router.push("/");
-        toast.success("Login Sucessful!")
 
-      } catch ( error ) {
-        toast.error(error.message)
+        this.$router.push("/");
+
+        toast.success("Login Successful!");
+
+      } catch (error) {
+        toast.error(error.message);
       }
     },
+
+    // Log out
     logout() {
       logoutUser();
-      // Reset value after user log out
+
+      // Reset the user's state
       this.$patch({
         name: "",
         role: "",
         isLoggedIn: false
       });
+
       this.$router.push("/");
-      toast.info("You have been logged out!")
+
+      toast.info("You have been logged out!");
     }
-  },
+  }
 });
