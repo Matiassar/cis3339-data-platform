@@ -158,20 +158,20 @@
         <!--Update Client submit button-->
         <div class="flex justify-between mt-10 mr-20">
           <button @click="submitUpdateClient" type="submit" class="bg-green-700 disabled:opacity-50 text-white rounded"
-            :disabled="user.role === 'viewer'">
+            :disabled="user.role !== 'editor'">
             Update Client
           </button>
         </div>
         <!--Delete Client button-->
         <div class="flex justify-between mt-10 mr-20">
           <button @click="submitDeleteClient" type="submit" class="bg-red-700 disabled:opacity-50 text-white rounded"
-            :disabled="user.role === 'viewer'">
+            :disabled="user.role !== 'editor'">
             Delete Client
           </button>
         </div>
         <!--Go back button-->
         <div class="flex justify-between mt-10 mr-20">
-          <button type="reset" class="border border-red-700 bg-white text-red-700 rounded" @click=this.$router.back()>
+          <button type="reset" class="border border-red-700 bg-white text-red-700 rounded" @click="router.back()">
             Go back
           </button>
         </div>
@@ -204,7 +204,7 @@
               <td class="p-2 text-right">
                 <span class="remove-btn-wrapper">
                   <span class="remove-btn text-gray-400 cursor-pointer"
-                    @click.stop="removeClientFromEvent(client._id, event._id)" v-if="hoverId === event._id">X</span>
+                    @click.stop="removeClientFromEvent(client._id, event._id)" v-if="hoverId === event._id && user.role === 'editor'">X</span>
                 </span>
               </td>
             </tr>
@@ -221,7 +221,7 @@
         <div class="flex justify-between">
           <!--button to add client to events-->
           <button @click="addClientToEvent" type="submit" class="mt-5 bg-red-700 disabled:opacity-50 text-white rounded"
-            :disabled="eventsSelected.length === 0 || user.role === 'viewer'">
+            :disabled="eventsSelected.length === 0 || user.role !== 'editor'">
             Add Client to Selected Events
           </button>
         </div>

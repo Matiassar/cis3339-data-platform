@@ -8,7 +8,7 @@
     <div class="px-10 py-20">
       <!-- form field -->
       <!-- @submit.prevent stops the submit event from reloading the page-->
-      <form @submit.prevent="submitForm">
+      <form novalidate @submit.prevent="submitForm">
         <!-- grid container -->
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10">
           <h2 class="text-2xl font-bold">Personal Details</h2>
