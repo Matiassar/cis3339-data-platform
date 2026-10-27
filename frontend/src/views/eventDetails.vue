@@ -136,20 +136,20 @@
         <!--Update Event button-->
         <div class="flex justify-between mt-10 mr-20">
           <button @click="submitEventUpdate" type="submit" class="bg-green-700 disabled:opacity-50 text-white rounded"
-            :disabled="user.role === 'viewer'">
+            :disabled="user.role !== 'editor'">
             Update Event
           </button>
         </div>
         <!--Delete Event button-->
         <div class="flex justify-between mt-10 mr-20">
           <button @click="submitDeleteEvent" type="submit" class="bg-red-700  disabled:opacity-50 text-white rounded"
-            :disabled="user.role === 'viewer'">
+            :disabled="user.role !== 'editor'">
             Delete Event
           </button>
           <!--Go back button-->
         </div>
         <div class="flex justify-between mt-10 mr-20">
-          <button type="reset" class="border border-red-700 bg-white text-red-700 rounded" @click=this.$router.back()>
+          <button type="reset" class="border border-red-700 bg-white text-red-700 rounded" @click="router.back()">
             Go back
           </button>
         </div>
@@ -194,121 +194,171 @@
   </main>
 </template>
 
-<script>
-//import vuelidate functionalities
+
+<script setup>
+import { reactive, ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import useVuelidate from '@vuelidate/core'
 import { required } from '@vuelidate/validators'
-import { useLoggedInUserStore } from "../store/loggedInUser";
-import { getEventById, getEventAttendees, getServices, updateEvent, deleteEvent } from '../api/api'
+import { useLoggedInUserStore } from '../store/loggedInUser'
+import {
+  getEventById,
+  getEventAttendees,
+  getServices,
+  updateEvent,
+  deleteEvent
+} from '../api/api'
 import { useToast } from 'vue-toastification'
 
-//Notifications
+// Router, notifications, and logged-in user
+const route = useRoute()
+const router = useRouter()
 const toast = useToast()
+const user = useLoggedInUserStore()
 
-export default {
-  data() {
-    return {
-      //variable to hold clients for selected event
-      clients: [],
-      //variable to hold services for selected event
-      services: [],
-      //variable to hold event information
-      event: {
-        name: null,
-        description: null,
-        date: null,
-        address: {
-          line1: null,
-          line2: null,
-          city: null,
-          county: null,
-          zip: null
-        },
-        attendees: [],
-        services: []
+// Attendees and services for the selected event
+const clients = ref([])
+const services = ref([])
+const hoverId = ref(null)
+
+// Event information
+const event = reactive({
+  name: null,
+  description: null,
+  date: null,
+  address: {
+    line1: null,
+    line2: null,
+    city: null,
+    county: null,
+    zip: null
+  },
+  attendees: [],
+  services: []
+})
+
+// Validate event date
+const validDate = (value) => {
+  if (!value) return false
+
+  const date = new Date(`${value}T00:00:00`)
+
+  return !isNaN(date.getTime()) &&
+    date.getFullYear() === Number(value.slice(0, 4)) &&
+    date.getMonth() + 1 === Number(value.slice(5, 7)) &&
+    date.getDate() === Number(value.slice(8, 10))
+}
+
+// Validation rules
+const rules = {
+  event: {
+    name: { required },
+    date: {
+      required,
+      validDate
+    }
+  }
+}
+
+const v$ = useVuelidate(rules, { event })
+
+// Load event, attendee, and service information
+onMounted(async () => {
+  try {
+    const [eventResponse, clientsResponse, servicesResponse] =
+      await Promise.all([
+        getEventById(route.params.id),
+        getEventAttendees(route.params.id),
+        getServices()
+      ])
+
+    // Convert the event date to YYYY-MM-DD for the HTML date input
+    const eventDate = eventResponse.date
+    const formattedDate = eventDate
+      ? new Date(eventDate).toISOString().substring(0, 10)
+      : null
+
+    Object.assign(event, {
+      ...eventResponse,
+      date: formattedDate,
+      address: {
+        line1: null,
+        line2: null,
+        city: null,
+        county: null,
+        zip: null,
+        ...(eventResponse.address || {})
       },
-      // variable stores the ID of the row that the mouse is currently hovering over (to highlight the row red)
-      hoverId: null,
-    }
-  },
-  setup() {
-    // register Vuelidate and loggedIn store
-    const v$ = useVuelidate();
-    const user = useLoggedInUserStore();
-    return { v$, user };
-  },
-  validations() {
-    // validations
-    const validDate = (value) => {
-      const date = new Date(value)
-      return !isNaN(date)
-    }
+      services: Array.isArray(eventResponse.services)
+        ? eventResponse.services.map(service =>
+            typeof service === 'object' ? service._id : service
+          )
+        : [],
+      attendees: eventResponse.attendees || []
+    })
 
-    return {
-      event: {
-        name: { required },
-        date: {
-          required,
-          validDate
-        },
-      }
-    }
-  },
-  async mounted() {
-    // when component is mounted, data is loaded
-    try {
-      const [eventResponse, clientsResponse, servicesResponse] = await Promise.all([
-        getEventById(this.$route.params.id),
-        getEventAttendees(this.$route.params.id),
-        getServices(),
-      ]);
+    clients.value = clientsResponse
+    services.value = servicesResponse
+  } catch (error) {
+    console.error('Error loading event details:', error)
+    toast.error('Error loading event details')
+  }
+})
 
-      eventResponse.date = new Date(eventResponse.date).toISOString().substring(0, 10);
+// Update event
+const submitEventUpdate = async () => {
+  if (user.role !== 'editor') return
 
-      this.event = eventResponse;
-      this.clients = clientsResponse;
-      this.services = servicesResponse;
-     // this.inactiveServices = servicesResponse.filter(item => item.status === "Inactive")
+  const isValid = await v$.value.$validate()
 
-    } catch (error) {
-      toast.error('error loading data', error)
-    }
-  },
-  methods: {
-    // method called when user attempts to update the event -> asks for confirmation
-    async submitEventUpdate() {
-      // Trigger validation
-      this.v$.$validate();
+  if (!isValid) {
+    toast.error('Please fix input field errors')
+    return
+  }
 
-      if (this.v$.$error) {
-        // Form is invalid, do not proceed
-        return;
-      }
+  try {
+    const response = await updateEvent(route.params.id, event)
 
-      try {
-        const response = await updateEvent(this.$route.params.id, this.event);
-        toast.success(response)
-        this.$router.push('/findevents')
-      } catch (error) {
-        toast.error('error updating event', error)
-      }
-    },
+    toast.success(
+      typeof response === 'string'
+        ? response
+        : 'Event updated successfully'
+    )
 
-    // method to make the API call to delete the event - can only be deleted if no attendees are in event
-    async submitDeleteEvent() {
-      try {
-        if (this.event.attendees != 0)
-        {
-          toast.info('Event can not be deleted since it has attendees.')
-          return
-        }
-        const response = await deleteEvent(this.$route.params.id);
-        toast.success(response)
-        this.$router.push('/findevents')
-      } catch (error) {
-        toast.error(error)
-      }
-    },
+    await router.push('/findevents')
+  } catch (error) {
+    console.error('Error updating event:', error)
+    toast.error('Error updating event')
+  }
+}
+
+// Delete event if it has no attendees
+const submitDeleteEvent = async () => {
+  if (user.role !== 'editor') return
+
+  const attendeeCount = Array.isArray(event.attendees)
+    ? event.attendees.length
+    : Number(event.attendees) || 0
+
+  if (attendeeCount > 0 || clients.value.length > 0) {
+    toast.info('Event cannot be deleted since it has attendees.')
+    return
+  }
+
+  try {
+    const response = await deleteEvent(route.params.id)
+
+    toast.success(
+      typeof response === 'string'
+        ? response
+        : 'Event deleted successfully'
+    )
+
+    await router.push('/findevents')
+  } catch (error) {
+    console.error('Error deleting event:', error)
+    toast.error('Error deleting event')
   }
 }
 </script>
+
