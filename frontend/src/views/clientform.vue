@@ -1,14 +1,27 @@
-<!-- This view allows a user to create client information. -->
+<!-- This view allows a user to create a client, or to pick an existing client from the dropdown to edit or delete it. -->
 <template>
   <main>
     <!--Header-->
     <h1 class="font-bold text-4xl text-red-700 tracking-widest text-center mt-10">
-      Client Intake Form
+      {{ isEdit ? 'Edit Client' : 'Client Intake Form' }}
     </h1>
     <div class="px-10 py-20">
       <!-- form field -->
       <!-- @submit.prevent stops the submit event from reloading the page-->
       <form novalidate @submit.prevent="submitForm">
+        <!-- Pick an existing client to edit/delete, or leave on "New client" to create one -->
+        <div class="mb-10 max-w-md">
+          <label class="block">
+            <span class="text-gray-700">Select a client to edit or delete</span>
+            <select v-model="editingId" @change="onPickClient"
+              class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+              <option value="">New client</option>
+              <option v-for="c in clients" :key="c._id" :value="c._id">
+                {{ c.firstName }} {{ c.lastName }} ({{ c.phoneNumber?.primary }})
+              </option>
+            </select>
+          </label>
+        </div>
         <!-- grid container -->
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10">
           <h2 class="text-2xl font-bold">Personal Details</h2>
@@ -163,12 +176,34 @@
           </div>
           <div></div>
 
-          <!-- Add Client Submit Button -->
-          <div class="flex justify-between mt-10 mr-20">
+          <!-- Create mode: Add Client button -->
+          <div v-if="!isEdit" class="flex justify-between mt-10 mr-20">
             <button class="bg-red-700 text-white rounded" type="submit">
               Add Client
             </button>
           </div>
+
+          <!-- Edit mode: Update, Delete and Go back buttons (Update/Delete only for editors) -->
+          <template v-else>
+            <div class="flex justify-between mt-10 mr-20">
+              <button class="bg-green-700 disabled:opacity-50 text-white rounded" type="submit"
+                :disabled="!canEdit">
+                Update Client
+              </button>
+            </div>
+            <div class="flex justify-between mt-10 mr-20">
+              <button class="bg-red-700 disabled:opacity-50 text-white rounded" type="button"
+                :disabled="!canEdit" @click="submitDelete">
+                Delete Client
+              </button>
+            </div>
+            <div class="flex justify-between mt-10 mr-20">
+              <button class="border border-red-700 bg-white text-red-700 rounded" type="button"
+                @click="router.back()">
+                Go back
+              </button>
+            </div>
+          </template>
         </div>
       </form>
     </div>
@@ -176,15 +211,24 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import useVuelidate from '@vuelidate/core';
 import { required, email, numeric, minLength, maxLength } from '@vuelidate/validators';
-import { createClient } from '../api/api';
+import { useLoggedInUserStore } from '../store/loggedInUser';
+import { getClients, createClient, getClientById, updateClient, deleteClientbyId } from '../api/api';
 
 const router = useRouter();
 const toast = useToast();
+const user = useLoggedInUserStore();
+
+// id of the client picked in the dropdown; empty means the form creates a new client
+const editingId = ref('');
+const clients = ref([]);
+const isEdit = computed(() => !!editingId.value);
+// only editors may update or delete
+const canEdit = computed(() => user.role === 'editor');
 
 const client = reactive({
   firstName: '',
@@ -219,21 +263,84 @@ const rules = {
 
 const v$ = useVuelidate(rules, { client });
 
+// api.js rethrows the server's response body (usually a plain string), so check for that first
 function errorMessage(error) {
-  const response = error?.response?.data;
-  if (typeof response === 'string') return response;
-  return response?.message || error?.message || 'Unable to save client.';
+  const data = error?.response?.data ?? error;
+  if (typeof data === 'string' && data.trim()) return data;
+  return data?.message || error?.message || 'Unable to save client.';
+}
+
+async function loadClient() {
+  try {
+    const data = await getClientById(editingId.value);
+    Object.assign(client, {
+      ...data,
+      middleName: data.middleName || '',
+      phoneNumber: { primary: '', alternate: '', ...(data.phoneNumber || {}) },
+      address: { line1: '', line2: '', city: '', county: '', zip: '', ...(data.address || {}) }
+    });
+    v$.value.$reset();
+  } catch (error) {
+    toast.error(errorMessage(error));
+  }
 }
 
 async function submitForm() {
   const isValid = await v$.value.$validate();
   if (!isValid) return;
   try {
-    const response = await createClient(client);
-    toast.success(typeof response === 'string' ? response : 'Client created successfully.');
+    if (isEdit.value) {
+      if (!canEdit.value) return;
+      const response = await updateClient(editingId.value, client);
+      toast.success(typeof response === 'string' ? response : 'Client updated successfully.');
+    } else {
+      const response = await createClient(client);
+      toast.success(typeof response === 'string' ? response : 'Client created successfully.');
+    }
     await router.push('/findclient');
   } catch (error) {
     toast.error(errorMessage(error));
   }
 }
+
+async function submitDelete() {
+  if (!canEdit.value) return;
+  if (!window.confirm(`Delete ${client.firstName} ${client.lastName}?`)) return;
+  try {
+    const response = await deleteClientbyId(editingId.value);
+    toast.success(typeof response === 'string' ? response : 'Client deleted successfully.');
+    await router.push('/findclient');
+  } catch (error) {
+    // the server refuses to delete a client who is signed up for events and says why
+    toast.error(errorMessage(error));
+  }
+}
+
+function resetForm() {
+  Object.assign(client, {
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    email: '',
+    phoneNumber: { primary: '', alternate: '' },
+    address: { line1: '', line2: '', city: '', county: '', zip: '' }
+  });
+  v$.value.$reset();
+}
+
+async function loadClientList() {
+  try {
+    clients.value = await getClients();
+  } catch (error) {
+    toast.error(errorMessage(error));
+  }
+}
+
+// called when the dropdown changes: fill the form for the picked client, or clear it for "New client"
+function onPickClient() {
+  if (editingId.value) loadClient();
+  else resetForm();
+}
+
+onMounted(loadClientList);
 </script>
