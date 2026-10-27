@@ -1,22 +1,25 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useLoggedInUserStore } from '../store/loggedInUser'
 
-// make all paths and names lowercase for consistency
+// Make all paths and names lowercase for consistency
 const routes = [
   {
     path: '/',
     component: () => import('../views/home.vue')
   },
   {
-    path: "/login",
-    name: "login",
+    path: '/login',
+    name: 'login',
     component: () => import('../views/login.vue')
   },
   {
     path: '/clientform',
     name: 'clientform',
-    // only authenticated users can create clients
-    meta: { requiresAuth: true },
+    // Only editors can create clients
+    meta: {
+      requiresAuth: true,
+      requiresEditor: true
+    },
     component: () => import('../views/clientform.vue')
   },
   {
@@ -34,7 +37,11 @@ const routes = [
   {
     path: '/eventform',
     name: 'eventform',
-    meta: { requiresAuth: true },
+    // Only editors can create events
+    meta: {
+      requiresAuth: true,
+      requiresEditor: true
+    },
     component: () => import('../views/eventform.vue')
   },
   {
@@ -52,7 +59,11 @@ const routes = [
   {
     path: '/serviceform',
     name: 'serviceform',
-    meta: { requiresAuth: true },
+    // Only editors can create services
+    meta: {
+      requiresAuth: true,
+      requiresEditor: true
+    },
     component: () => import('../views/serviceform.vue')
   },
   {
@@ -68,22 +79,44 @@ const routes = [
     component: () => import('../views/servicedetails.vue')
   }
 ]
+
+// Create Vue Router
 const router = createRouter({
   history: createWebHistory(),
   routes
 })
 
-// protecting the routes
+// Protect authenticated and editor-only routes
 router.beforeEach((to) => {
   const store = useLoggedInUserStore()
-  if (to.meta.requiresAuth && !store.isLoggedIn) {
+
+  // Check whether the user is logged in
+  if (
+    (to.meta.requiresAuth || to.meta.requiresEditor) &&
+    !store.isLoggedIn
+  ) {
     return {
       path: '/login',
-      // save the location we were at to come back later
-      query: { redirect: to.fullPath },
+      // Save the requested page for after login
+      query: {
+        redirect: to.fullPath
+      }
     }
   }
+
+  // Check whether the user has editor permissions
+  if (
+    to.meta.requiresEditor &&
+    store.role !== 'editor'
+  ) {
+    // Viewers cannot access editor-only pages
+    return {
+      path: '/'
+    }
+  }
+
+  // Allow navigation
+  return true
 })
 
 export default router
-
