@@ -1,48 +1,63 @@
 <template>
   <div class="w-1/2">
-    <canvas class="p-10" ref="zipChart"></canvas>
+    <canvas class="p-10" ref="canvas"></canvas>
   </div>
 </template>
 
-<script>
+<script setup>
+// Composition API migration (F1):
+// - props: { label, chartData } -> defineProps()
+// - mounted() -> onMounted(), which creates the chart
+// - this.$refs.zipChart -> template ref `canvas` via ref(null)
+// - NEW: watch() updates the chart when the props change (the old chart stayed stale)
+// - NEW: onBeforeUnmount() destroys the chart (the old one leaked a Chart.js instance)
+// - was: `await new Chart(...)`, a constructor isn't a promise, so the await was removed
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Chart, registerables } from 'chart.js'
+
 Chart.register(...registerables)
-//define props (label and chartData)
-export default {
-  props: {
-    label: {
-      type: Array
+
+const props = defineProps({
+  label: { type: Array, default: () => [] },
+  chartData: { type: Array, default: () => [] }
+})
+
+const canvas = ref(null)
+let chart = null // Chart.js instance; not reactive on purpose (Chart.js manages itself)
+
+onMounted(() => {
+  chart = new Chart(canvas.value, {
+    type: 'doughnut',
+    data: {
+      labels: props.label,
+      datasets: [{ borderWidth: 1, data: props.chartData }]
     },
-    chartData: {
-      type: Array
-    }
-  },
-  async mounted() { //uses the data to load the chart's values
-    await new Chart(this.$refs.zipChart, {
-      type: 'doughnut',
-      data: {
-        labels: this.label,
-        datasets: [
-          {
-            borderWidth: 1,
-            data: this.chartData // Update this line
-          }
-        ]
+    options: {
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: 'Clients by Zip Code' }
       },
-      options: {
-        plugins: {
-          legend: {
-            display: false
-          },
-          title: {
-            display: true,
-            text: 'Clients by Zip Code'
-          }
-        },
-        responsive: true,
-        maintainAspectRatio: true
-      }
-    })
+      responsive: true,
+      maintainAspectRatio: true
+    }
+  })
+})
+
+// Redraw when the dashboard passes new data
+watch(
+  () => [props.label, props.chartData],
+  ([labels, data]) => {
+    if (!chart) return
+    chart.data.labels = labels
+    chart.data.datasets[0].data = data
+    chart.update()
   },
-}
+  { deep: true }
+)
+
+// Free the canvas and its event listeners when leaving the page
+onBeforeUnmount(() => {
+  chart?.destroy()
+  chart = null
+})
 </script>
