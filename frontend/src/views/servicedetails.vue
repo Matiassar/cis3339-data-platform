@@ -130,6 +130,7 @@ import {
   deleteService
 } from '../api/api'
 import { useToast } from 'vue-toastification'
+import { formatDate } from '../utils/formatDate'
 
 // Router, notifications, and logged-in user
 const route = useRoute()
@@ -157,20 +158,6 @@ const rules = {
 
 const v$ = useVuelidate(rules, { service })
 
-// Temporary date formatter until shared formatDate is available
-const formatDate = (date) => {
-  if (!date) return ''
-
-  const isoDate = new Date(date)
-
-  if (isNaN(isoDate.getTime())) return ''
-
-  const year = isoDate.getUTCFullYear()
-  const month = String(isoDate.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(isoDate.getUTCDate()).padStart(2, '0')
-
-  return `${month}/${day}/${year}`
-}
 
 // Load service details and associated events
 onMounted(async () => {

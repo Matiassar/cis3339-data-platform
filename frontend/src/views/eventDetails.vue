@@ -272,7 +272,7 @@ onMounted(async () => {
         getServices()
       ])
 
-    // Temporary date conversion until shared formatDate is ready
+    // Convert the event date to YYYY-MM-DD for the HTML date input
     const eventDate = eventResponse.date
     const formattedDate = eventDate
       ? new Date(eventDate).toISOString().substring(0, 10)
