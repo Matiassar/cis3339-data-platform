@@ -175,86 +175,65 @@
   </main>
 </template>
 
-<script>
-//import functionalities for validation
-import useVuelidate from '@vuelidate/core'
-import { required, email, numeric, minLength, maxLength } from '@vuelidate/validators'
-import { createClient } from '../api/api'
-import { useToast } from 'vue-toastification'
+<script setup>
+import { reactive } from 'vue';
+import { useRouter } from 'vue-router';
+import { useToast } from 'vue-toastification';
+import useVuelidate from '@vuelidate/core';
+import { required, email, numeric, minLength, maxLength } from '@vuelidate/validators';
+import { createClient } from '../api/api';
 
-//Notifications
-const toast = useToast()
+const router = useRouter();
+const toast = useToast();
 
-export default {
-  data() {
-    return {
-      //client variable to hold new client information
-      client: {
-        firstName: null,
-        middleName: null,
-        lastName: null,
-        email: null,
-        phoneNumber: {
-          primary: null,
-          alternate: null
-        },
-        address: {
-          line1: null,
-          line2: null,
-          city: null,
-          county: null,
-          zip: null
-        },
-      }
-    }
-  },
-  setup() {
-    // Register Vuelidate
-    const v$ = useVuelidate();
-    return { v$ };
-  },
-  validations() {
-    // validations for client
-    return {
-      client: {
-        firstName: { required },
-        lastName: { required },
-        email: { required, email },
-        phoneNumber: {
-          primary: {
-            required,
-            numeric,
-            minLength: minLength(10),
-            maxLength: maxLength(10),
-          },
-        },
-        address: {
-          city: { required },
-        },
-      },
-    };
-  },
-  methods: {
-    // method called when user submits the form
-    async submitForm() {
-      // Trigger validation
-      this.v$.$validate();
+const client = reactive({
+  firstName: '',
+  middleName: '',
+  lastName: '',
+  email: '',
+  phoneNumber: { primary: '', alternate: '' },
+  address: { 
+    line1: '',
+    line2: '', 
+    city: '', 
+    county: '', 
+    zip: '' }
+});
 
-      if (this.v$.$error) {
-        // Form is invalid, do not proceed
-        return;
-      }
-
-      try {
-        const response = await createClient(this.client);
-        this.$router.push('/findclient')
-        toast.success(response)
-      } catch (error) {
-        toast.error(error)
-      }
+const rules = {
+  client: {
+    firstName: { required },
+    lastName: { required },
+    email: { required, email },
+    phoneNumber: {
+      primary: { 
+        required,
+        numeric,
+        minLength: minLength(10),
+        maxLength: maxLength(10) }
     },
+    address: {
+      city: { required } }
+  }
+};
+
+const v$ = useVuelidate(rules, { client });
+
+function errorMessage(error) {
+  const response = error?.response?.data;
+  if (typeof response === 'string') return response;
+  return response?.message || error?.message || 'Unable to save client.';
+}
+
+async function submitForm() {
+  const isValid = await v$.value.$validate();
+  if (!isValid) return;
+  try {
+    const response = await createClient(client);
+    toast.success(typeof response === 'string' ? response : 'Client created successfully.');
+    await router.push('/findclient');
+  } catch (error) {
+    toast.error(errorMessage(error));
   }
 }
 </script>
-
-
