@@ -1,13 +1,11 @@
-// This Pinia store manages the logged-in user's state
+// This Pinia store manages the logged-in user's session
 import { defineStore } from 'pinia'
 import { useToast } from 'vue-toastification'
 import { loginUser, logoutUser, setAuthHeader } from '../api/api'
 import jwt_decode from 'jwt-decode'
 
-// Notifications
 const toast = useToast()
 
-// Defining the store
 export const useLoggedInUserStore = defineStore({
   id: 'loggedInUser',
 
@@ -21,12 +19,13 @@ export const useLoggedInUserStore = defineStore({
 
   actions: {
 
-    // CHECKPOINT 1: Restore login when the page refreshes
+    // Restore the saved session when the application starts
     restoreSession() {
       const token = localStorage.getItem("authToken");
 
-      // If there is no saved token, remain logged out
+      // No saved token means the user is logged out
       if (!token) {
+        this.$reset();
         return;
       }
 
@@ -34,18 +33,44 @@ export const useLoggedInUserStore = defineStore({
         // Decode the saved JWT
         const decodedToken = jwt_decode(token);
 
-        // Restore the user's name, role, and login status
+        // Check whether the token has expired
+        const currentTime = Math.floor(Date.now() / 1000);
+
+        if (
+          typeof decodedToken.exp !== "number" ||
+          decodedToken.exp <= currentTime
+        ) {
+          throw new Error("Token is expired or has no valid expiration");
+        }
+
+        // Validate the user's role
+        if (
+          !["editor", "viewer"].includes(decodedToken.role)
+        ) {
+          throw new Error("Token contains an invalid role");
+        }
+
+        // Restore the user's information
+        // Username is optional because the backend JWT only contains role and timestamps
         this.$patch({
-          name: decodedToken.name,
+          name: typeof decodedToken.name === "string"
+            ? decodedToken.name
+            : "",
           role: decodedToken.role,
           isLoggedIn: true
         });
 
-        // Restore the authorization header for API requests
+        // Restore the Authorization header
         setAuthHeader(token);
 
       } catch (error) {
-        console.error("Failed to restore session:", error);
+        console.warn("Invalid session:", error.message);
+
+        // Remove invalid or expired token and clear API authorization
+        logoutUser();
+
+        // Reset login state
+        this.$reset();
       }
     },
 
@@ -54,13 +79,12 @@ export const useLoggedInUserStore = defineStore({
       try {
         const token = await loginUser(username, password);
 
-        // Get the user's name and role from the JWT
         const decodedToken = jwt_decode(token);
 
         this.$patch({
           isLoggedIn: true,
           role: decodedToken.role,
-          name: decodedToken.name
+          name: decodedToken.name || ""
         });
 
         this.$router.push("/");
@@ -74,15 +98,13 @@ export const useLoggedInUserStore = defineStore({
 
     // Log out
     logout() {
+      // Remove saved token and authorization header
       logoutUser();
 
-      // Reset the user's state
-      this.$patch({
-        name: "",
-        role: "",
-        isLoggedIn: false
-      });
+      // Reset login state
+      this.$reset();
 
+      // Navigate to dashboard
       this.$router.push("/");
 
       toast.info("You have been logged out!");
