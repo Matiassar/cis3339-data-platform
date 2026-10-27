@@ -8,7 +8,7 @@
     <div class="px-10 py-20">
       <!-- form field -->
       <!-- @submit.prevent stops the submit event from reloading the page-->
-      <form @submit.prevent="submitForm">
+      <form novalidate @submit.prevent="submitForm">
         <!-- grid container -->
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10">
           <h2 class="text-2xl font-bold">Personal Details</h2>
@@ -175,86 +175,75 @@
   </main>
 </template>
 
-<script>
-//import functionalities for validation
-import useVuelidate from '@vuelidate/core'
-import { required, email, numeric, minLength, maxLength } from '@vuelidate/validators'
-import { createClient } from '../api/api'
-import { useToast } from 'vue-toastification'
+<script setup>
+/*
+ * Migration notes (Options API -> <script setup>)
+ *  - data() { client: {...} }                -> const client = reactive({...})
+ *  - validations() { client: {...} }         -> const rules = {...}; const v$ = useVuelidate(rules, { client })
+ *  - setup() { return { v$: useVuelidate() } } -> removed; v$ is a top-level const and is used in the template as-is
+ *  - methods: { submitForm() {...} }         -> plain async function submitForm()
+ *  - this.v$.$validate()                     -> v$.value.$validate()   (v$ is a ref now)
+ *  - this.$router.push(...)                  -> const router = useRouter(); router.push(...)
+ *  - this.$toast / module-level useToast()   -> const toast = useToast() inside <script setup>
+ *  - export default { ... } and `this`       -> removed; imports are available to the template automatically
+ *  - Error handling                          -> toast.error(error.message); no local error-translation helper
+ *  - Template: <form> gets `novalidate` so the Vuelidate messages show instead of the browser's own pattern/email bubble
+ */
+import { reactive } from 'vue';
+import { useRouter } from 'vue-router';
+import { useToast } from 'vue-toastification';
+import useVuelidate from '@vuelidate/core';
+import { required, email, numeric, minLength, maxLength } from '@vuelidate/validators';
+import { createClient } from '../api/api';
 
-//Notifications
-const toast = useToast()
+const router = useRouter();
+const toast = useToast();
 
-export default {
-  data() {
-    return {
-      //client variable to hold new client information
-      client: {
-        firstName: null,
-        middleName: null,
-        lastName: null,
-        email: null,
-        phoneNumber: {
-          primary: null,
-          alternate: null
-        },
-        address: {
-          line1: null,
-          line2: null,
-          city: null,
-          county: null,
-          zip: null
-        },
-      }
-    }
-  },
-  setup() {
-    // Register Vuelidate
-    const v$ = useVuelidate();
-    return { v$ };
-  },
-  validations() {
-    // validations for client
-    return {
-      client: {
-        firstName: { required },
-        lastName: { required },
-        email: { required, email },
-        phoneNumber: {
-          primary: {
-            required,
-            numeric,
-            minLength: minLength(10),
-            maxLength: maxLength(10),
-          },
-        },
-        address: {
-          city: { required },
-        },
-      },
-    };
-  },
-  methods: {
-    // method called when user submits the form
-    async submitForm() {
-      // Trigger validation
-      this.v$.$validate();
+const client = reactive({
+  firstName: '',
+  middleName: '',
+  lastName: '',
+  email: '',
+  phoneNumber: { primary: '', alternate: '' },
+  address: {
+    line1: '',
+    line2: '',
+    city: '',
+    county: '',
+    zip: ''
+  }
+});
 
-      if (this.v$.$error) {
-        // Form is invalid, do not proceed
-        return;
-      }
-
-      try {
-        const response = await createClient(this.client);
-        this.$router.push('/findclient')
-        toast.success(response)
-      } catch (error) {
-        toast.error(error)
+const rules = {
+  client: {
+    firstName: { required },
+    lastName: { required },
+    email: { required, email },
+    phoneNumber: {
+      primary: {
+        required,
+        numeric,
+        minLength: minLength(10),
+        maxLength: maxLength(10)
       }
     },
+    address: {
+      city: { required }
+    }
+  }
+};
+
+const v$ = useVuelidate(rules, { client });
+
+async function submitForm() {
+  const isValid = await v$.value.$validate();
+  if (!isValid) return;
+  try {
+    const response = await createClient(client);
+    toast.success(response);
+    await router.push('/findclient');
+  } catch (error) {
+    toast.error(error.message);
   }
 }
 </script>
-
-
