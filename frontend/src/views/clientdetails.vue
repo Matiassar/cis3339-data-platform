@@ -232,6 +232,23 @@
 </template>
 
 <script setup>
+/*
+ * Migration notes (Options API -> <script setup>)
+ *  - data() { client, clientEvents, eventsFiltered, eventsSelected, hoverId }
+ *        -> const state = reactive({...}); const { client, ... } = toRefs(state)   (use .value in script, plain names in template)
+ *  - setup() { return { v$: useVuelidate(), user: useLoggedInUserStore() } }
+ *        -> const v$ = useVuelidate(rules, state); const user = useLoggedInUserStore()
+ *  - validations() { client: {...} }         -> const rules = {...}
+ *  - mounted() / created() { loadData() }    -> onMounted(loadData)
+ *  - this.$route.params.id                   -> const route = useRoute(); route.params.id
+ *  - this.$router.push(...) / .back()        -> const router = useRouter(); router.push(...) / router.back()   (`this.` is not valid in the template of <script setup>)
+ *  - methods: { ... }                        -> plain functions (loadData, addClientToEvent, removeClientFromEvent, submitUpdateClient, submitDeleteClient, nameWithDate)
+ *  - methods.formatDate(date)                -> import { formatDate } from '../utils/formatDate' (shared copy, no local duplicate)
+ *  - components: { VueMultiselect }          -> removed; imported components are registered automatically
+ *  - role check: user.role === 'viewer'      -> user.role !== 'editor' (template :disabled and the guard at the top of each handler)
+ *  - Register / deregister                   -> a rejected request (e.g. "already registered") is shown with toast.info(error.message), not treated as an app error
+ *  - Error handling                          -> toast.error(error.message); no local error-translation helper
+ */
 import { reactive, toRefs, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
@@ -288,12 +305,6 @@ const rules = {
 };
 const v$ = useVuelidate(rules, state);
 
-function messageFrom(error, fallback = 'The request could not be completed.') {
-  const data = error?.response?.data ?? error;
-  if (typeof data === 'string' && data.trim()) return data;
-  return data?.message || error?.message || fallback;
-}
-
 function nameWithDate({ name, date }) {
   return `${name} (${formatDate(date)})`;
 }
@@ -323,7 +334,7 @@ async function loadData() {
     clientEvents.value = registered;
     eventsFiltered.value = available;
   } catch (error) {
-    toast.error(messageFrom(error, 'Error loading client information.'));
+    toast.error(error.message);
   }
 }
 
@@ -331,14 +342,14 @@ async function removeClientFromEvent(clientId, eventId) {
   if (user.role !== 'editor') return;
   try {
     const response = await deregisterAttendee(eventId, clientId);
-    toast.success(messageFrom(response, 'Client deregistered from event.'));
+    toast.success(response);
   } catch (error) {
-    toast.info(messageFrom(error, 'Client is not registered for this event.'));
+    toast.info(error.message);
   }
   try {
     await refreshEventLists();
   } catch (error) {
-    toast.error(messageFrom(error, 'Unable to refresh event registrations.'));
+    toast.error(error.message);
   }
 }
 
@@ -351,9 +362,9 @@ async function addClientToEvent() {
 
   for (const result of results) {
     if (result.status === 'fulfilled') {
-      toast.success(messageFrom(result.value, 'Client registered for event.'));
+      toast.success(result.value);
     } else {
-      toast.info(messageFrom(result.reason, 'Client is already registered for this event.'));
+      toast.info(result.reason.message);
     }
   }
 
@@ -361,7 +372,7 @@ async function addClientToEvent() {
   try {
     await refreshEventLists();
   } catch (error) {
-    toast.error(messageFrom(error, 'Unable to refresh event registrations.'));
+    toast.error(error.message);
   }
 }
 
@@ -370,10 +381,10 @@ async function submitUpdateClient() {
   if (!await v$.value.$validate()) return;
   try {
     const response = await updateClient(route.params.id, client.value);
-    toast.success(messageFrom(response, 'Client updated successfully.'));
+    toast.success(response);
     await router.push('/findclient');
   } catch (error) {
-    toast.error(messageFrom(error, 'Unable to update client.'));
+    toast.error(error.message);
   }
 }
 
@@ -381,10 +392,10 @@ async function submitDeleteClient() {
   if (user.role !== 'editor') return;
   try {
     const response = await deleteClientbyId(route.params.id);
-    toast.success(messageFrom(response, 'Client deleted successfully.'));
+    toast.success(response);
     await router.push('/findclient');
   } catch (error) {
-    toast.error(messageFrom(error, 'Unable to delete client.'));
+    toast.error(error.message);
   }
 }
 
