@@ -24,7 +24,9 @@ jobs:
       - run: npm run build
         env:
           VITE_ROOT_API: http://localhost:3000
-
+      - name: Unit tests
+        run: npm test
+        
   backend:
     name: Backend install and syntax check
     runs-on: ubuntu-latest
