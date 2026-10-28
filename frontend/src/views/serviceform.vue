@@ -1,4 +1,4 @@
-<!-- This viewt allows for the creation of a new service -->
+<!-- This view allows for the creation of a new service -->
 <template>
     <main>
         <!--Header-->
@@ -76,59 +76,64 @@
     </main>
 </template>
 
-<script>
-// import vuelidate validations
+<script setup>
+// This view allows for the creation of a new service.
+//
+// Composition API migration (Sprint 2):
+// - data() -> reactive(service)
+// - setup() + validations() -> rules object passed to useVuelidate()
+// - methods -> plain functions
+// - this.$router -> useRouter()
+// - this.v$ -> v$.value
+import { reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import useVuelidate from '@vuelidate/core'
 import { required } from '@vuelidate/validators'
 import { createService } from '../api/api'
 import { useToast } from 'vue-toastification'
 
-//Notifications
+// Toast pop-up notifications
 const toast = useToast()
+// was: this.$router
+// Now uses useRouter() to go back to the service list after saving
+const router = useRouter()
 
-export default {
-    data() {
-        return {
-            //variable to hold new service information
-            service: {
-                name: null,
-                description: null,
-                status: "Active",
-            },
-        }
-    },
-    setup() {
-        // Register Vuelidate
-        const v$ = useVuelidate();
-        return { v$ };
-    },
-    validations() {
-        // validations for service
-        return {
-            service: {
-                name: { required },
-            }
-        }
-    },
-    methods: {
-        // method called when user attempts to create new service
-        async handleSubmitForm() {
-            // Trigger validation
-            this.v$.$validate();
+// was: service object inside data()
+// Now uses reactive() so the form inputs (v-model) stay in sync
+const service = reactive({
+  name: null,
+  description: null,
+  status: 'Active'
+})
 
-            if (this.v$.$error) {
-                // Form is invalid, do not proceed
-                return;
-            }
+// was: validations() in the Options API
+// Now a plain rules object: service name is required (same rule as before)
+const rules = {
+  service: {
+    name: { required }
+  }
+}
+// was: useVuelidate() called inside setup() with no arguments
+// Now passes the rules and state directly; the template still uses v$.service.name.$error
+const v$ = useVuelidate(rules, { service })
 
-            try {
-                const response = await createService(this.service);
-                toast.success(response)
-                this.$router.push('/findservice')
-            } catch (error) {
-                toast.error('Error creating new service:', error)
-            }
-        },
-    }
+// was: handleSubmitForm() inside methods, using this.v$ and this.service
+// Now a plain async function, called when the user submits the form
+async function handleSubmitForm() {
+  // Check the form; shows the red error message if the name is empty
+  const isValid = await v$.value.$validate()
+  if (!isValid) return // form is invalid, do not proceed
+
+  try {
+    // Send the new service to the backend
+    const response = await createService(service)
+    // The backend replies with a success message string
+    toast.success(typeof response === 'string' ? response : 'Service created')
+    // Go back to the service list
+    router.push('/findservice')
+  } catch (error) {
+    // error.message is a readable string from the API interceptor
+    toast.error(error.message)
+  }
 }
 </script>
