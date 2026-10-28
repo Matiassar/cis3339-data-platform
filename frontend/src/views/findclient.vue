@@ -11,7 +11,6 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10">
         <!--Search Client By selection-->
         <h2 class="text-2xl font-bold">Search Client By</h2>
-        <!-- Displays Client Name search field -->
         <div class="flex flex-col">
           <select
             class="rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
@@ -25,7 +24,7 @@
           <label class="block">
             <input type="text"
               class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              v-model="firstName" v-on:keyup.enter="handleSubmitForm" placeholder="Enter first name" />
+              v-model="firstName" @keyup.enter="handleSubmitForm" placeholder="Enter first name" />
           </label>
         </div>
         <!--Input box for searching by Client Last Name-->
@@ -33,27 +32,27 @@
           <label class="block">
             <input type="text"
               class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              v-model="lastName" v-on:keyup.enter="handleSubmitForm" placeholder="Enter last name" />
+              v-model="lastName" @keyup.enter="handleSubmitForm" placeholder="Enter last name" />
           </label>
         </div>
         <!-- Displays Client Number search field -->
         <div class="flex flex-col" v-if="searchBy === 'Client Number'">
           <input
             class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            type="text" v-model="phoneNumber" v-on:keyup.enter="handleSubmitForm"
+            type="text" v-model="phoneNumber" @keyup.enter="handleSubmitForm"
             placeholder="Enter Client Phone Number" />
         </div>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10">
         <div></div>
         <div></div>
-        <!--Clear Search button-->
         <div class="mt-5 grid-cols-2">
-          <button class="mr-10 border border-red-700 bg-white text-red-700 rounded" @click="loadData" type="submit">
+          <!--Clear Search button-->
+          <button class="mr-10 border border-red-700 bg-white text-red-700 rounded" @click="clearSearch" type="button">
             Clear Search
           </button>
           <!--Search Client button-->
-          <button class="bg-red-700 text-white rounded" @click="handleSubmitForm" type="submit">
+          <button class="bg-red-700 text-white rounded" @click="handleSubmitForm" type="button">
             Search Client
           </button>
         </div>
@@ -66,110 +65,104 @@
         <h2 class="text-2xl font-bold">List of Clients</h2>
         <h3 class="italic">Click table row to view client details</h3>
       </div>
-      <!--Table showing list of Clients-->
       <div class="flex flex-col col-span-2">
-        <table class="min-w-full shadow-md rounded">
-          <thead class="bg-gray-50 text-xl">
-            <tr>
-              <th class="p-4 text-left">Name</th>
-              <th class="p-4 text-left">Phone number</th>
-              <th class="p-4 text-left">City</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-300">
-            <tr @click="$router.push({ name: 'clientdetails', params: { id: client._id } })" v-for="client in clients"
-              :key="client._id" class="cursor-pointer" :class="{ 'hoverRow': hoverId === client._id }"
-              @mouseenter="hoverId = client._id" @mouseleave="hoverId = null">
-              <td class="p-2 text-left">
-                {{ client.firstName + ' ' + client.lastName }}
-              </td>
-              <td class="p-2 text-left">
-                {{ client.phoneNumber.primary }}
-              </td>
-              <td class="p-2 text-left">{{ client.address.city }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <!-- F3: three different states so the user always knows what is happening -->
+        <!-- 1) Loading: shown while the request is in progress -->
+        <p v-if="loading" class="p-4 text-gray-600 italic">Loading clients...</p>
+        <!-- 2) Error: shows the message from the API interceptor, plus a Retry button -->
+        <div v-else-if="error" class="p-4 border border-red-300 bg-red-50 rounded">
+          <p class="text-red-700 mb-3">{{ error }}</p>
+          <button class="bg-red-700 text-white rounded" type="button" @click="retry">Retry</button>
+        </div>
+        <!-- 3) Data: the shared DataTable (it shows its own "No results" row when empty) -->
+        <DataTable v-else :columns="columns" :rows="data || []" @row-click="openClient" />
       </div>
     </div>
   </main>
 </template>
 
-<script>
+<script setup>
+// Composition API migration (Sprint 2):
+// - data() -> ref() for each search field
+// - mounted() -> onMounted()
+// - methods -> plain functions
+// - this.$router.push -> useRouter()
+// - try/catch + toast in every method -> useApi() (gives data, loading, error)
+// - copy-pasted <table> markup -> shared DataTable component (F3)
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getClients, searchClients } from '../api/api'
-import { useToast } from 'vue-toastification'
+import { useApi } from '../composables/useApi'
+import DataTable from '../components/DataTable.vue'
 
-//Notifications
-const toast = useToast()
+// was: this.$router (only works in the Options API)
+// Now uses useRouter() to open the details page when a row is clicked
+const router = useRouter()
 
-export default {
-  data() {
-    return {
-      //variable to store all clients and their information for the organization
-      clients: null,
-      // Parameters for search to occur
-      searchBy: '',
-      firstName: '',
-      lastName: '',
-      phoneNumber: '',
-      // variable stores the ID of the row that the mouse is currently hovering over (to highlight the row red)
-      hoverId: null,
-    }
-  },
-  mounted() {
-    // when component is mounted, load the data -
-    this.loadData()
-  },
-  methods: {
-    // method called when component is mounted
-    async loadData() {
-      // Resets all the variables
-      this.searchBy = ''
-      this.firstName = ''
-      this.lastName = ''
-      this.phoneNumber = ''
+// was: search fields listed inside data()
+// Now each search field is its own ref(), bound to the inputs with v-model
+const searchBy = ref('')
+const firstName = ref('')
+const lastName = ref('')
+const phoneNumber = ref('')
 
-      // get list of clients
-      try {
-        const response = await getClients();
-        this.clients = response;
-      } catch (error) {
-        toast.error(error)
-      }
-    },
-    // method called when user searches for clients
-    async handleSubmitForm() {
-      // if user searched by client name
-      if (this.searchBy === 'Client Name') {
-        if (this.firstName || this.lastName) {
-          try {
-            const query = {
-              searchBy: 'name',
-              firstName: this.firstName,
-              lastName: this.lastName,
-            }
-            const response = await searchClients(query)
-            this.clients = response;
-          } catch (error) {
-            toast.error(error)
-          }
-        }
-        // if user searches by client phone number
-      } else if (this.searchBy === 'Client Number') {
-        if (this.phoneNumber) {
-          try {
-            const query = {
-              searchBy: 'number',
-              phoneNumber: this.phoneNumber
-            }
-            const response = await searchClients(query)
-            this.clients = response;
-          } catch (error) {
-            toast.error(error)
-          }
-        }
-      }
-    },
-  },
+// was: data() held 'clients', and each method had its own try/catch + toast
+// Now useApi gives us data, loading, and error for this page.
+// execute(null) loads all clients; execute(query) runs a search instead.
+const { data, loading, error, execute } = useApi((query) =>
+  query ? searchClients(query) : getClients()
+)
+
+// Remember the last request so Retry repeats exactly that one
+// (a failed search retries the search, not the full list)
+let lastQuery = null
+// Runs a request and remembers it for Retry
+function run(query) {
+  lastQuery = query
+  return execute(query)
 }
+// Called by the Retry button
+function retry() {
+  return execute(lastQuery)
+}
+
+// was: each column was hand-written <th>/<td> markup in the template
+// Now: column setup for DataTable: label = header text, field = which property to show
+const columns = [
+  // Name shows first + last, but sorts by first name
+  { label: 'Name', field: 'firstName', render: (c) => `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() },
+  { label: 'Phone number', field: 'phoneNumber.primary' },
+  { label: 'City', field: 'address.city' }
+]
+
+// was: Clear Search called loadData() in methods
+// Now: a plain function that empties the form and reloads the full list
+function clearSearch() {
+  searchBy.value = ''
+  firstName.value = ''
+  lastName.value = ''
+  phoneNumber.value = ''
+  run(null)
+}
+
+// was: handleSubmitForm() inside methods, with its own try/catch
+// Now a plain function. Search button / Enter key: run the search that matches the dropdown choice.
+// Does nothing if the search box is empty.
+function handleSubmitForm() {
+  if (searchBy.value === 'Client Name' && (firstName.value || lastName.value)) {
+    run({ searchBy: 'name', firstName: firstName.value, lastName: lastName.value })
+  } else if (searchBy.value === 'Client Number' && phoneNumber.value) {
+    run({ searchBy: 'number', phoneNumber: phoneNumber.value })
+  }
+}
+
+// was: @click="$router.push(...)" written on each <tr>
+// Now DataTable sends the clicked row up, and this function opens its details page
+function openClient(client) {
+  router.push({ name: 'clientdetails', params: { id: client._id } })
+}
+
+// was: mounted() { this.loadData() }
+// Now uses onMounted() to load all clients when the page first opens
+onMounted(() => run(null))
 </script>
