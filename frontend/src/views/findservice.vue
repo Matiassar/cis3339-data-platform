@@ -24,7 +24,7 @@
           <label class="block">
             <input type="text"
               class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              v-model="name" v-on:keyup.enter="handleSubmitForm" placeholder="Enter service name" />
+              v-model="name" @keyup.enter="handleSubmitForm" placeholder="Enter service name" />
           </label>
         </div>
         <!--Display service description search field-->
@@ -32,7 +32,7 @@
           <label class="block">
             <input type="text"
               class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              v-model="description" v-on:keyup.enter="handleSubmitForm" placeholder="Enter service description" />
+              v-model="description" @keyup.enter="handleSubmitForm" placeholder="Enter service description" />
           </label>
         </div>
       </div>
@@ -41,11 +41,11 @@
         <div></div>
         <div class="mt-5 grid-cols-2">
           <!--Clear Search button-->
-          <button class="mr-10 border border-red-700 bg-white text-red-700 rounded" @click="loadData" type="submit">
+          <button class="mr-10 border border-red-700 bg-white text-red-700 rounded" @click="clearSearch" type="button">
             Clear Search
           </button>
           <!--Search Service button-->
-          <button class="bg-red-700 text-white rounded" @click="handleSubmitForm" type="submit">
+          <button class="bg-red-700 text-white rounded" @click="handleSubmitForm" type="button">
             Search Service
           </button>
         </div>
@@ -53,109 +53,106 @@
     </div>
 
     <hr class="mt-10 mb-10" />
-    <!-- Display Found Data -->
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10">
-      <!--List of Services table-->
       <div class="ml-10">
         <h2 class="text-2xl font-bold">List of Services</h2>
         <h3 class="italic">Click table row to view service details</h3>
       </div>
       <div class="flex flex-col col-span-2">
-        <table class="min-w-full shadow-md rounded">
-          <thead class="bg-gray-50 text-xl">
-            <tr>
-              <th class="p-4 text-left" style="width: 25%;">Service Name</th>
-              <th class="p-4 text-left" style="width: 75%;">Service Description</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-300">
-            <tr @click="$router.push({name: 'servicedetails', params: { id: service._id } })" 
-            v-for="service in services" :key="service._id" class="cursor-pointer"
-              :class="{ 'hoverRow': hoverId === service._id }" @mouseenter="hoverId = service._id"
-              @mouseleave="hoverId = null">
-              <td class="p-4 text-left">{{ service.name }}</td>
-              <td class="p-4 text-left text-sm">{{ service.description }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <!-- F3: three different states so the user always knows what is happening -->
+        <!-- 1) Loading: shown while the request is in progress -->
+        <p v-if="loading" class="p-4 text-gray-600 italic">Loading services...</p>
+        <!-- 2) Error: shows the message from the API interceptor, plus a Retry button -->
+        <div v-else-if="error" class="p-4 border border-red-300 bg-red-50 rounded">
+          <p class="text-red-700 mb-3">{{ error }}</p>
+          <button class="bg-red-700 text-white rounded" type="button" @click="retry">Retry</button>
+        </div>
+        <!-- 3) Data: the shared DataTable (it shows its own "No results" row when empty) -->
+        <DataTable v-else :columns="columns" :rows="data || []" @row-click="openService" />
       </div>
     </div>
   </main>
 </template>
 
-<script>
+<script setup>
+// Composition API migration (Sprint 2):
+// - data() -> ref() for each search field
+// - mounted() -> onMounted()
+// - methods -> plain functions
+// - this.$router.push -> useRouter()
+// - try/catch + toast in every method -> useApi() (gives data, loading, error)
+// - copy-pasted <table> markup -> shared DataTable component (F3)
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getServices, searchServices } from '../api/api'
-import { useToast } from 'vue-toastification'
+import { useApi } from '../composables/useApi'
+import DataTable from '../components/DataTable.vue'
 
-//Notifications
-const toast = useToast()
+// was: this.$router (only works in the Options API)
+// Now uses useRouter() to open the details page when a row is clicked
+const router = useRouter()
 
-export default {
-  data() {
-    return {
-      //variable to hold the services for the organization
-      services: null,
-      // Parameters for search to occur
-      searchBy: null,
-      name: null,
-      description: null,
-      // variable stores the ID of the row that the mouse is currently hovering over (to highlight the row red)
-      hoverId: null,
-    }
-  },
-  mounted() {
-    // when component is mounted, load the data
-    this.loadData();
-  },
-  methods: {
-    // method called when component is mounted
-    async loadData() {
-      // Resets all the variables
-      this.searchBy = ''
-      this.name = ''
-      this.description = ''
+// was: search fields listed inside data()
+// Now each search field is its own ref(), bound to the inputs with v-model
+const searchBy = ref('')
+const name = ref('')
+const description = ref('')
 
-      // get list of services
-      try {
-        const response = await getServices();
-        this.services = response;
-      } catch (error) {
-        toast.error(error)
-      }
-    },
+// was: data() held 'services', and each method had its own try/catch + toast
+// Now useApi gives us data, loading, and error for this page.
+// execute(null) loads all services; execute(query) runs a search instead.
+const { data, loading, error, execute } = useApi((query) =>
+  query ? searchServices(query) : getServices()
+)
 
-    // method called when user searches for a service
-    async handleSubmitForm() {
-      // if user searches by service name
-      if (this.searchBy === 'Service Name') {
-        if (this.name) {
-          try {
-            const query = {
-              searchBy: 'name',
-              name: this.name
-            }
-            const response = await searchServices(query)
-            this.services = response;
-          } catch (error) {
-            toast.error(error)
-          }
-        }
-        // if user searches by service description
-      } else if (this.searchBy === 'Service Description') {
-        if (this.description) {
-          try {
-            const query = {
-              searchBy: 'description',
-              description: this.description
-            }
-            const response = await searchServices(query)
-            this.services = response;
-          } catch (error) {
-            toast.error('Error searching services:', error)
-          }
-        }
-      }
-    },
-  },
+// Remember the last request so Retry repeats exactly that one
+// (a failed search retries the search, not the full list)
+let lastQuery = null
+// Runs a request and remembers it for Retry
+function run(query) {
+  lastQuery = query
+  return execute(query)
 }
+// Called by the Retry button
+function retry() {
+  return execute(lastQuery)
+}
+
+// was: each column was hand-written <th>/<td> markup in the template
+// Now: column setup for DataTable: label = header text, field = which property to show
+const columns = [
+  { label: 'Service Name', field: 'name' },
+  // cellClass keeps long descriptions in smaller text, like the old table
+  { label: 'Service Description', field: 'description', cellClass: 'text-sm' }
+]
+
+// was: Clear Search called loadData() in methods
+// Now: a plain function that empties the form and reloads the full list
+function clearSearch() {
+  searchBy.value = ''
+  name.value = ''
+  description.value = ''
+  run(null)
+}
+
+// was: handleSubmitForm() inside methods, with its own try/catch
+// Now a plain function. Search button / Enter key: run the search that matches the dropdown choice.
+// Does nothing if the search box is empty.
+function handleSubmitForm() {
+  if (searchBy.value === 'Service Name' && name.value) {
+    run({ searchBy: 'name', name: name.value })
+  } else if (searchBy.value === 'Service Description' && description.value) {
+    run({ searchBy: 'description', description: description.value })
+  }
+}
+
+// was: @click="$router.push(...)" written on each <tr>
+// Now DataTable sends the clicked row up, and this function opens its details page
+function openService(service) {
+  router.push({ name: 'servicedetails', params: { id: service._id } })
+}
+
+// was: mounted() { this.loadData() }
+// Now uses onMounted() to load all services when the page first opens
+onMounted(() => run(null))
 </script>
