@@ -158,6 +158,14 @@
 
 
 <script setup>
+
+ // Composition API migration (F1):
+ // - data() → reactive(event) and ref() for reactive state
+ // - Lifecycle hooks → onMounted()
+ // - methods → plain functions
+ // - this.$router → useRouter()
+ // - validations() → rules passed to useVuelidate()
+
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import useVuelidate from '@vuelidate/core'
@@ -224,10 +232,15 @@ const rules = {
   }
 }
 
-const v$ = useVuelidate(rules, { event })
+ // was: validations() in the Options API
+ // Now uses a rules object with useVuelidate()
+ const v$ = useVuelidate(rules, { event })
 
-// Load available services when the page opens
-onMounted(async () => {
+
+ // was: service loading handled by an Options API lifecycle hook
+ // Now uses onMounted() to load active services when the page opens
+ onMounted(async () => {
+
   try {
     const response = await getServices()
     activeServices.value = response.filter(
@@ -239,8 +252,10 @@ onMounted(async () => {
   }
 })
 
-// Validate and submit the new event
-const handleSubmitForm = async () => {
+
+ // was: form submission handled inside the Options API methods section
+ // Now uses handleSubmitForm() as a plain async function
+ const handleSubmitForm = async () => {
   const isValid = await v$.value.$validate()
 
   if (!isValid) {

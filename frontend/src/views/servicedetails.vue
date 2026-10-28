@@ -118,6 +118,14 @@
 
 
 <script setup>
+
+ // Composition API migration (F1):
+ // - data() → reactive(service) and ref(events)
+ // - created() → onMounted()
+ // - methods → plain functions
+ // - this.$router / this.$route → useRouter() / useRoute()
+ // - validations() → rules passed to useVuelidate(rules, { service })
+
 import { reactive, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import useVuelidate from '@vuelidate/core'
@@ -156,10 +164,13 @@ const rules = {
   }
 }
 
+// was: validations() in Options API
+// Now uses a rules object with useVuelidate()
 const v$ = useVuelidate(rules, { service })
 
 
-// Load service details and associated events
+// was: created() lifecycle hook in Options API
+// Now uses onMounted() to load service details and associated events
 onMounted(async () => {
   try {
     const [serviceResponse, eventsResponse] = await Promise.all([
@@ -186,8 +197,11 @@ const submitServiceUpdate = async () => {
     return
   }
 
-  try {
-    const response = await updateService(route.params.id, service)
+
+try {
+  // was: update logic inside an Options API methods section
+  // Now uses a plain function with an imported updateService() API call
+  const response = await updateService(route.params.id, service)
 
     toast.success(
       typeof response === 'string'
