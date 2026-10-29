@@ -70,6 +70,8 @@ Open <http://localhost:5173> and log in with one of the demo users below.
 
 > If `npm install` prints an `install-scripts` warning about **bcrypt**, run `npm rebuild bcrypt` in `backend/` before starting it.
 
+> If the backend prints `querySrv ECONNREFUSED`, your network is blocking the DNS lookup used by `mongodb+srv://` addresses. The committed `MONGO_URL` already uses the standard `mongodb://` format that lists the cluster's servers directly, so pull the latest `main`; if you changed it locally, restore it with `git restore backend/.env`.
+
 ## Demo users
 
 | Role | Username | Password | Can do |
@@ -133,6 +135,19 @@ npm run preview    # serves dist at http://localhost:4173
 - `npm run preview` (or the older alias `npm run serve`) serves the **production** build, not the dev server. Use it for demos.
 - The backend must be running (and `CORS_ORIGIN` must allow the preview's origin) for the preview to load data.
 
+## Tests (bonus)
+
+```powershell
+cd frontend
+npm install
+npm test           # runs once: 15 unit tests for useApi and the API error interceptor
+npm run test:watch # re-runs on file changes while developing
+```
+
+- Tests use [Vitest](https://vitest.dev/) and live in `frontend/tests/`.
+- The interceptor tests start a small fake HTTP server inside the test file, so **they never touch the team's backend or database**.
+- CI runs `npm test` on every pull request, after the build.
+
 ## Deployment
 
 `frontend/dist` is a static site and can be hosted on any static host (Netlify, Cloudflare Pages, Render static site, Apache, nginx, and so on).
@@ -155,14 +170,15 @@ To verify: open the deployed (or previewed) site, go to a client's details page,
 ## Development workflow
 
 - Never push to `main`. Create a branch per task (`feature/f3-datatable`, `fix/...`), open a pull request, and include `Closes #<issue>` in the description.
-- Every PR needs a green CI check (frontend build + backend syntax check) and one teammate's approval.
+- Every PR needs a green CI check (frontend build + unit tests + backend syntax check) and one teammate's approval.
 - Merge with a regular **merge commit** so each person's commits stay in the history.
 - Run `git switch main` and `git pull` before starting new work each day.
 
 ## Known limitations
 
-- **Vite 3 dev-server advisories.** Dependabot reports advisories in Vite 3 and its `launch-editor` helper. They affect only the local dev server (`npm run dev`), not the production build in `dist`. Don't expose the dev server with `--host`, and stop it when not in use. Upgrading Vite (a major-version change) is planned for Sprint 3.
+- **Vite 3 and Vitest 0.25 advisories.** Dependabot reports advisories in Vite 3, its `launch-editor` helper, and Vitest's UI server. They affect only the local dev server (`npm run dev`) and the Vitest UI (`vitest --ui`, which this project never runs; tests use `vitest run`). The production build in `dist` is not affected. Don't expose the dev server with `--host`, and stop it when not in use. Upgrading Vite and Vitest (major-version changes) is planned for Sprint 3.
 - **Backend authorization and organization isolation are not enforced yet.** Role checks and `withOrg` scoping are Sprint 3 work (S1); until then, editor-only rules are enforced in the UI only.
 - **CORS still allows any origin** (`*`) until S1 locks it to `CORS_ORIGIN`.
 - **The seed script is temporary** until D1 (`npm run db:init`).
 - **Unused `uuid` dependency** in the backend has an open Dependabot advisory; it is not imported anywhere and will be removed.
+- **Viewers can type into form fields on details pages,** but Update, Delete, and Register are disabled, so nothing is saved. Locking the fields themselves is a planned polish item.
