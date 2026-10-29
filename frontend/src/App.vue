@@ -167,6 +167,16 @@
 </template>
 
 <script setup>
+// Composition API migration (F1):
+// - export default { data, setup, created, methods } -> <script setup>
+// - data() { orgName } -> const orgName = ref('Dataplatform')
+// - setup() { return { user } } -> const user = useLoggedInUserStore() at top level
+// - created() -> onMounted() to load the organization name
+// - was: catch { throw (error) }, where `error` was never declared (ReferenceError);
+//   now catches the error and logs it, keeping the default name
+// - was: methods.logout() calling this.$store.dispatch (Vuex, never used in this
+//   Pinia app); removed, since the nav calls user.logout() from the Pinia store
+// - Template: logo path @\assets\... (Windows-only backslashes) -> @/assets/..., added alt text
 import { ref, onMounted } from 'vue'
 import { useLoggedInUserStore } from './store/loggedInUser'
 import { getOrgName } from './api/api'
