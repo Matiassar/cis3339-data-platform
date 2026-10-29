@@ -164,24 +164,37 @@ export const updateEvent = async (id, eventData) => {
   return response.data;
 };
 
-// PUT: register a client for an event
+// Registration responses (B1 API contract)
+// The register/deregister endpoints may answer with:
+//   - plain text (current backend), e.g. "Client added to event"
+//   - { message: "Already registered" } or { message: "Not registered" } (B1 rules)
+//   - the created/removed record on the first successful call (also allowed by B1)
+// These functions always return a short readable string, so pages can show it directly
+// and won't need changes when the backend switches to the B1 shapes in Sprint 3.
+function registrationMessage(data, fallback) {
+  if (typeof data === "string" && data.trim()) return data;
+  if (typeof data?.message === "string" && data.message.trim()) return data.message;
+  return fallback;
+}
+
+// PUT: register a client for an event; resolves to a readable message
 export const registerAttendee = async (eventId, clientId) => {
   const response = await apiClient.put(
     "/events/register",
     {},
     { params: { event: eventId, client: clientId } }
   );
-  return response.data;
+  return registrationMessage(response.data, "Client registered for event");
 };
 
-// PUT: remove a client from an event
+// PUT: remove a client from an event; resolves to a readable message
 export const deregisterAttendee = async (eventId, clientId) => {
   const response = await apiClient.put(
     "/events/deregister",
     {},
     { params: { event: eventId, client: clientId } }
   );
-  return response.data;
+  return registrationMessage(response.data, "Client removed from event");
 };
 
 // DELETE an event by ID

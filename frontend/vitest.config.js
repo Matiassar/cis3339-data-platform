@@ -11,6 +11,8 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Test files share one fake-server port, so run them one at a time
+    threads: false,
     include: ['tests/**/*.test.js'],
     // Tests talk to a small fake server started inside the test file,
     // never to the team's real backend or database.
