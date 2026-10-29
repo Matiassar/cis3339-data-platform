@@ -53,6 +53,13 @@
 </template>
 
 <script setup>
+// Composition API migration (F1):
+// - export default { data, setup } -> <script setup>
+// - data() { username, password } -> ref('') for each field
+// - setup() { return { store } } -> const store = useLoggedInUserStore() at top level
+// - was: @submit called store.login(username, password) directly in the template;
+//   now handleLogin() passes the ?redirect= page so users return where they started (F4)
+// - NEW: isSubmitting ref disables the button while logging in (prevents double submits)
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useLoggedInUserStore } from '../store/loggedInUser'
