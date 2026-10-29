@@ -1,50 +1,112 @@
-// This pinia store contains state with respect to whether a user is logged in 
 import { defineStore } from 'pinia'
 import { useToast } from 'vue-toastification'
-import { loginUser, logoutUser } from '../api/api' // import API calls
-import jwt_decode from 'jwt-decode'; // import JSON Web Token decoder to decode the token into the user's information
+import { loginUser, logoutUser, setAuthHeader } from '../api/api'
+import jwt_decode from 'jwt-decode'
 
-//Notifications
 const toast = useToast()
 
-// Defining a store
 export const useLoggedInUserStore = defineStore({
   id: 'loggedInUser',
+
   state: () => {
     return {
-      name: "",
-      role: "",
+      name: '',
+      role: '',
       isLoggedIn: false
     }
   },
+
   actions: {
-    async login(username, password) {
+
+    // Restore login when the application starts
+    restoreSession() {
+      const token = localStorage.getItem('authToken')
+
+      if (!token) {
+        this.$reset()
+        return
+      }
+
       try {
-        const token = await loginUser(username, password);
-        // Get the user's name and role from the JWT token
-        const decodedToken = jwt_decode(token);
+        const decodedToken = jwt_decode(token)
+        const currentTime = Math.floor(Date.now() / 1000)
+
+        // Check expiration
+        if (
+          typeof decodedToken.exp !== 'number' ||
+          decodedToken.exp <= currentTime
+        ) {
+          throw new Error('Token is expired or has no valid expiration')
+        }
+
+        // Validate role
+        if (!['editor', 'viewer'].includes(decodedToken.role)) {
+          throw new Error('Token contains an invalid role')
+        }
+
+        // Restore user information
+        this.$patch({
+          name: typeof decodedToken.name === 'string'
+            ? decodedToken.name
+            : '',
+          role: decodedToken.role,
+          isLoggedIn: true
+        })
+
+        // Restore authorization header
+        setAuthHeader(token)
+
+      } catch (error) {
+        console.warn('Invalid session:', error.message)
+
+        logoutUser()
+        this.$reset()
+      }
+    },
+
+    // Login and navigate to the originally requested page
+    async login(username, password, redirect = '/') {
+      try {
+        const token = await loginUser(username, password)
+        const decodedToken = jwt_decode(token)
+
         this.$patch({
           isLoggedIn: true,
           role: decodedToken.role,
-          name: decodedToken.name
-        });
-        this.$router.push("/");
-        toast.success("Login Sucessful!")
+          name: decodedToken.name || ''
+        })
 
-      } catch ( error ) {
+        toast.success('Login Successful!')
+
+        // Only allow internal application paths
+        const destination =
+          typeof redirect === 'string' &&
+          redirect.startsWith('/') &&
+          !redirect.startsWith('//') &&
+          !redirect.startsWith('/\\')
+            ? redirect
+            : '/'
+
+        // Router guard will enforce editor permissions
+        await this.$router.push(destination)
+
+        return true
+
+      } catch (error) {
         toast.error(error.message)
+        return false
       }
     },
+
+    // Logout and reset user state
     logout() {
-      logoutUser();
-      // Reset value after user log out
-      this.$patch({
-        name: "",
-        role: "",
-        isLoggedIn: false
-      });
-      this.$router.push("/");
-      toast.info("You have been logged out!")
+      logoutUser()
+
+      this.$reset()
+
+      this.$router.push('/')
+
+      toast.info('You have been logged out!')
     }
-  },
-});
+  }
+})

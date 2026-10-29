@@ -2,27 +2,39 @@ import { createApp, markRaw } from "vue";
 import router from "./router";
 import App from "./App.vue";
 import "./index.css";
+
 import Toast from "vue-toastification";
-// Import the CSS or use your own!
 import "vue-toastification/dist/index.css";
-//state management library
-import { createPinia } from 'pinia'
+
+import { createPinia } from "pinia";
+import { useLoggedInUserStore } from "./store/loggedInUser";
 
 const app = createApp(App);
 
-//create a pinia root store
+// Create the Pinia store
 const pinia = createPinia();
-//pinia should be able to use router - has to be setup as plugin
+
+// Allow Pinia stores to access Vue Router
 pinia.use(({ store }) => {
-  store.$router = markRaw(router)
+  store.$router = markRaw(router);
 });
 
-//add pinia object to our instance
-app.use(pinia)
+// Register Pinia
+app.use(pinia);
+
+// CHECKPOINT 1: Restore saved login when the app starts
+const loggedInUserStore = useLoggedInUserStore();
+loggedInUserStore.restoreSession();
+
+// Register Vue Router
 app.use(router);
 
+// Configure notifications
 const options = {
-  position: 'bottom-right'
+  position: "bottom-right"
 };
+
 app.use(Toast, options);
+
+// Mount the application
 app.mount("#app");
