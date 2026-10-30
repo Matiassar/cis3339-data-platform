@@ -83,7 +83,15 @@ Passwords are stored as bcrypt hashes; the plaintext values only exist in `backe
 
 ## Environment files
 
-Both `.env` files are **committed on purpose** so the project can be graded without extra setup. Every value in them was created only for this course project (a dedicated Atlas cluster, a database user limited to this project, and a random JWT secret) and will be rotated after grading.
+The real `.env` files are **not committed** (the repository is public). Copy the provided templates and fill in the values:
+
+```powershell
+# from the repo root
+copy backend\.env.example backend\.env
+copy frontend\.env.example frontend\.env
+```
+
+For grading, the working `backend/.env` and `frontend/.env` are **submitted separately via Canvas** — drop those files in place of the copied templates and the app runs with no further configuration. Every value in them was created only for this course project (a dedicated Atlas cluster, a database user limited to this project, and a random JWT secret), and will be rotated/removed after grading.
 
 ### `backend/.env`
 
@@ -182,4 +190,4 @@ To verify: open the deployed (or previewed) site, go to a client's details page,
 - **The seed script is temporary** until D1 (`npm run db:init`).
 - **Unused `uuid` dependency** in the backend has an open Dependabot advisory; it is not imported anywhere and will be removed.
 - **Viewers can type into form fields on details pages,** but Update, Delete, and Register are disabled, so nothing is saved. Locking the fields themselves is a planned polish item.
-- **Committed credentials in a public repository.** `backend/.env` is committed with a working `MONGO_URL` and `JWT_SECRET` because the assignment requires a reproducible, committed configuration for grading. In a public repo these are exposed (GitHub secret scanning flags them, and they remain in git history). This is a deliberate, documented trade-off, mitigated by: a dedicated course-only Atlas cluster; a least-privilege database user (`readWrite` on the `dataplatform` database only — it cannot manage users, networking, or other databases); and `npm run seed:dev`, which restores the organization, demo users, and sample data if the data is tampered with. These credentials will be deleted/rotated in Atlas and `JWT_SECRET` regenerated after grading. `main` is protected (pull request + review + passing CI required; no direct pushes or force-pushes), so the exposed credentials do not give write access to the codebase.
+- **Environment files are not in the repository.** Because the repo is public, `backend/.env` and `frontend/.env` are kept out of version control (`.gitignore`) and submitted via Canvas for grading instead. `.env.example` templates document the required variables. The credentials used earlier in the project (and still present in older git history) were rotated after the repo was made public, so the historical values no longer work. Safeguards remain in place: a dedicated course-only Atlas cluster, a least-privilege database user (`readWrite` on `dataplatform` only — no user/network/cluster management), and `npm run seed:dev` to restore data if needed. `main` is protected (pull request + passing CI required; no direct pushes or force-pushes).
