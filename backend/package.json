@@ -4,7 +4,7 @@
   "description": "Dataplatform backend API",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "start": "nodemon app.js",
     "db:init": "node scripts/db-init.js"
   },
@@ -15,8 +15,7 @@
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.0",
     "mongoose": "^6.7.0",
-    "morgan": "^1.10.0",
-    "uuid": "^9.0.0"
+    "morgan": "^1.10.0"
   },
   "devDependencies": {
     "eslint": "^8.47.0",
