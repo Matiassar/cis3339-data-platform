@@ -15,7 +15,7 @@ const app = express();
 // add cors header to the server
 app.use(
   cors({
-    origin: '*'
+    origin: process.env.CORS_ORIGIN
   })
 );
 
