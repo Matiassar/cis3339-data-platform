@@ -30,7 +30,7 @@ backend/                 Express REST API
   auth/                  JWT authentication middleware
   models/                Mongoose schemas
   routes/                Client, event, service, org, and user routes
-  scripts/dev-seed.js    Creates the org, demo users, and sample data
+  scripts/db-init.js     Creates the org, demo users, and sample data
 frontend/                Vue 3 single-page app (Vite, Pinia, Vue Router, Tailwind)
   src/api/api.js         Axios client + the one error-handling interceptor
   src/composables/       Shared logic (useApi)
@@ -52,7 +52,7 @@ cd cis3339-data-platform
 ```powershell
 cd backend
 npm install
-npm run seed:dev
+npm run db:init
 npm start
 ```
 
@@ -117,7 +117,7 @@ For grading, the working `backend/.env` and `frontend/.env` are **submitted sepa
 
 ```powershell
 cd backend
-npm run seed:dev
+npm run db:init
 ```
 
 This creates, in the database from `MONGO_URL`:
@@ -126,9 +126,13 @@ This creates, in the database from `MONGO_URL`:
 - the `user` (viewer) and `admin` (editor) accounts, with bcrypt-hashed passwords
 - 16 clients, 15 services, and 15 events with registrations (enough to test sorting and paging)
 
-It is safe to run more than once: records are matched by a fixed key, so nothing is duplicated and nothing existing is deleted. It prints a summary such as `Seed complete: { users: 2, clients: 16, services: 15, events: 15 }`.
+It is safe to run more than once: records are matched by a fixed key, so nothing is duplicated and nothing existing is deleted. It also creates the indexes the app relies on (unique login per org, org-scoped lookups) and prints a summary such as `Initialization complete: { org: 1, users: 2, clients: 16, services: 15, events: 15 }`.
 
-> `seed:dev` is the Sprint 2 stand-in. Sprint 3 (D1) replaces it with `npm run db:init`.
+To wipe this organization's data and re-seed from scratch (destructive), pass the explicit flag:
+
+```powershell
+npm run db:init -- --reset
+```
 
 ## Production build (D2)
 
@@ -187,7 +191,6 @@ To verify: open the deployed (or previewed) site, go to a client's details page,
 - **Vite 3 and Vitest 0.25 advisories.** Dependabot reports advisories in Vite 3, its `launch-editor` helper, and Vitest's UI server. They affect only the local dev server (`npm run dev`) and the Vitest UI (`vitest --ui`, which this project never runs; tests use `vitest run`). The production build in `dist` is not affected. Don't expose the dev server with `--host`, and stop it when not in use. Upgrading Vite and Vitest (major-version changes) is planned for Sprint 3.
 - **Backend authorization and organization isolation are not enforced yet.** Role checks and `withOrg` scoping are Sprint 3 work (S1); until then, editor-only rules are enforced in the UI only.
 - **CORS still allows any origin** (`*`) until S1 locks it to `CORS_ORIGIN`.
-- **The seed script is temporary** until D1 (`npm run db:init`).
 - **Unused `uuid` dependency** in the backend has an open Dependabot advisory; it is not imported anywhere and will be removed.
 - **Viewers can type into form fields on details pages,** but Update, Delete, and Register are disabled, so nothing is saved. Locking the fields themselves is a planned polish item.
-- **Environment files are not in the repository.** Because the repo is public, `backend/.env` and `frontend/.env` are kept out of version control (`.gitignore`) and submitted via Canvas for grading instead. `.env.example` templates document the required variables. The credentials used earlier in the project (and still present in older git history) were rotated after the repo was made public, so the historical values no longer work. Safeguards remain in place: a dedicated course-only Atlas cluster, a least-privilege database user (`readWrite` on `dataplatform` only — no user/network/cluster management), and `npm run seed:dev` to restore data if needed. `main` is protected (pull request + passing CI required; no direct pushes or force-pushes).
+- **Environment files are not in the repository.** Because the repo is public, `backend/.env` and `frontend/.env` are kept out of version control (`.gitignore`) and submitted via Canvas for grading instead. `.env.example` templates document the required variables. The credentials used earlier in the project (and still present in older git history) were rotated after the repo was made public, so the historical values no longer work. Safeguards remain in place: a dedicated course-only Atlas cluster, a least-privilege database user (`readWrite` on `dataplatform` only — no user/network/cluster management), and `npm run db:init` to restore data if needed. `main` is protected (pull request + passing CI required; no direct pushes or force-pushes).
